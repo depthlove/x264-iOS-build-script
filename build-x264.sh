@@ -4,8 +4,7 @@ CONFIGURE_FLAGS="--enable-static --enable-pic --disable-cli"
 
 # sunminmin blog: http://depthlove.github.io/
 # modified by sunminmin, 2015/09/07
-#ARCHS="arm64 armv7s x86_64 i386 armv7"
-ARCHS="arm64 x86_64 i386 armv7"
+ARCHS="arm64 armv7s armv7 x86_64 i386"
 
 
 # directories
@@ -66,51 +65,55 @@ then
 		mkdir -p "$SCRATCH/$ARCH"
 		cd "$SCRATCH/$ARCH"
 
+		CFLAGS="-arch $ARCH"
+		ASFLAGS=
+
 		if [ "$ARCH" = "i386" -o "$ARCH" = "x86_64" ]
 		then
 		    PLATFORM="iPhoneSimulator"
 		    CPU=
 		    if [ "$ARCH" = "x86_64" ]
 		    then
-		    	SIMULATOR="-mios-simulator-version-min=7.0"
+		    	CFLAGS="$CFLAGS -mios-simulator-version-min=7.0"
 		    	HOST=
 		    else
-		    	SIMULATOR="-mios-simulator-version-min=5.0"
+		    	CFLAGS="$CFLAGS -mios-simulator-version-min=5.0"
 			HOST="--host=i386-apple-darwin"
 		    fi
 		else
 		    PLATFORM="iPhoneOS"
-		    if [ $ARCH = "armv7s" ]
-		    then
-		    	CPU="--cpu=swift"
-		    else
-		    	CPU=
-		    fi
-		    SIMULATOR=
 		    if [ $ARCH = "arm64" ]
 		    then
 		        HOST="--host=aarch64-apple-darwin"
+				XARCH="-arch aarch64"
 		    else
 		        HOST="--host=arm-apple-darwin"
+				XARCH="-arch arm"
 		    fi
+
+			CFLAGS="$CFLAGS -fembed-bitcode -mios-version-min=7.0"
+			ASFLAGS="$CFLAGS"
 		fi
 
 		XCRUN_SDK=`echo $PLATFORM | tr '[:upper:]' '[:lower:]'`
-		CC="xcrun -sdk $XCRUN_SDK clang -Wno-error=unused-command-line-argument-hard-error-in-future -arch $ARCH"
-		CFLAGS="-arch $ARCH $SIMULATOR"
+		CC="xcrun -sdk $XCRUN_SDK clang"
+		if [ $PLATFORM = "iPhoneOS" ]
+		then
+		    export AS="$GAS_PREPROCESSOR $XARCH -- $CC"
+		else
+		    export -n AS
+		fi
+
 		CXXFLAGS="$CFLAGS"
 		LDFLAGS="$CFLAGS"
 
 		CC=$CC $CWD/$SOURCE/configure \
 		    $CONFIGURE_FLAGS \
 		    $HOST \
-		    $CPU \
 		    --extra-cflags="$CFLAGS" \
+			--extra-asflags="$ASFLAGS" \
 		    --extra-ldflags="$LDFLAGS" \
 		    --prefix="$THIN/$ARCH"
-
-		mkdir extras
-		ln -s $GAS_PREPROCESSOR extras
 
 		make -j3 install
 		cd $CWD
